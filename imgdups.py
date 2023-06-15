@@ -117,29 +117,22 @@ def main():
         orb = cv2.ORB_create()
         _kp, search_des = orb.detectAndCompute(search_image, None)
 
-        duplicate_found = False  # Track whether a duplicate has been found
+        duplicate_found = False
 
-        for target_filename, target_des in target_index:
+        for target_filepath, target_des in target_index:
             bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
             matches = bf_match.match(search_des, target_des)
             if len(matches) > 300:
-                # extract image number and date from target_filename
-                match = re.search(r"photo_(\d+)_(\d{2}-\d{2}-\d{4}).jpg", target_filename)
-                if match:
-                    image_number = match.group(1)
-                    date = match.group(2)
-                    # convert the date format
-                    date = date.replace("-", ".")
-                    # construct and print the message
-                    message = f"photo-{date}"
-                    logging.info("Possible match found for %s"
-                            " and %s (score: %d)", filename, message, len(matches))
-                    duplicate_found = True  # Set the flag to True as a duplicate has been found
-                    break
+                logging.info("%s == %s (score: %d)",
+                        filename,
+                        os.path.basename(target_filepath),
+                        len(matches))
+                duplicate_found = True
+                break
 
         # If no duplicate has been found after checking all target images, log the message
         if not duplicate_found:
-            logging.info("No duplicate found for %s in target path", filename)
+            logging.info("No duplicate found for %s", filename)
 
     logging.info("Script finished!")
 
