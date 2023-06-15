@@ -8,6 +8,7 @@ import sys
 import logging
 import pickle
 import importlib
+import numpy as np
 
 # opencv
 import cv2
@@ -64,12 +65,15 @@ def get_pickle_index(path):
         image_path = os.path.join(path, filename)
         if not filename in processed_files:
             image_target = cv2.imread(image_path)
+            if not image_target:
+                continue
 
-            if image_target.shape != (500, 500, 3):
+            if np.shape(image_target) != (500, 500, 3):
                 scaled_image_path = os.path.join(path,"imgdups")
                 if not os.path.exists(scaled_image_path):
                     os.makedirs(scaled_image_path)
 
+                print(image_target)
                 image_target = cv2.resize(image_target, (500, 500))
                 # save scaled image
                 scaled_image = os.path.join(scaled_image_path,filename)
@@ -92,7 +96,7 @@ def get_pickle_index(path):
 
 def main():
     """ Start the script """
-    logging.info("Start with cv2 version: %s", cv2.__version__)
+    logging.info("Start script")
 
     config = load_config()
 
@@ -108,7 +112,7 @@ def main():
         file_path = os.path.join(config.SEARCH_PATH, filename)
         search_image = cv2.imread(file_path)
 
-        if search_image.shape != (500, 500, 3):
+        if np.shape(search_image) != (500, 500, 3):
             search_image = cv2.resize(search_image, (500, 500))
 
         orb = cv2.ORB_create()
