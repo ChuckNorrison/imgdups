@@ -61,22 +61,25 @@ def get_pickle_index(path):
     index_check = False
 
     for filename in os.listdir(path):
-        file_path = os.path.join(path, filename)
+        image_path = os.path.join(path, filename)
         if not filename in processed_files:
-            image_target = cv2.imread(file_path)
+            image_target = cv2.imread(image_path)
 
             if image_target.shape != (500, 500, 3):
+                scaled_image_path = os.path.join(path,"imgdups")
+                if not os.path.exists(scaled_image_path):
+                    os.makedirs(scaled_image_path)
+
                 image_target = cv2.resize(image_target, (500, 500))
                 # save scaled image
-                if cv2.imwrite(file_path+".tmp", image_target):
+                scaled_image = os.path.join(scaled_image_path,filename)
+                if cv2.imwrite(scaled_image, image_target):
                     # replace original
-                    logging.debug("Replace old image: %s", filename)
-                    os.remove(file_path)
-                    os.rename(file_path+".tmp", file_path)
+                    logging.debug("Add scaled image: %s", filename)
 
             orb = cv2.ORB_create()
             _kp, des = orb.detectAndCompute(image_target, None)
-            index.append((file_path, des))
+            index.append((scaled_image_path, des))
             processed_files.append(filename)
             index_check = True
 
