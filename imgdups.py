@@ -11,7 +11,7 @@ import pickle
 import importlib
 
 # opencv
-import cv2
+from cv2 import cv2
 
 # configure logging
 logging.basicConfig(
@@ -32,6 +32,10 @@ def remove_thumbs(path):
 def main():
     """ Start the script """
     config = importlib.import_module('config')
+    if ( not os.path.exists(config.TARGET_PATH)
+            or not os.path.exists(config.SEARCH_PATH) ):
+        logging.error("Config for TARGET_PATH or SEARCH_PATH is missing, Exit!")
+        sys.exit(1)
 
     logging.info("Start with cv2 version: %s", cv2.__version__)
 
@@ -48,7 +52,8 @@ def main():
             try:
                 processed_files, target_index = pickle.load(feat)
             except EOFError as ex:
-                logging.debug("Pickle file %s found but damaged (%s), start new", feat_file, str(ex))
+                logging.debug("Pickle file %s found but damaged (%s), start new",
+                        feat_file, str(ex))
 
     for filename in os.listdir(config.TARGET_PATH):
         file_path = os.path.join(config.TARGET_PATH, filename)
@@ -57,7 +62,8 @@ def main():
 
             # If image contains '@', scale it and rename it.
             if "@" in filename:
-                image_number = re.search(r"photo_(\d+)@\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}.jpg", filename).group(1)
+                image_number = re.search(r"photo_(\d+)@\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}.jpg",
+                        filename).group(1)
                 match = re.search(r"\d{2}-\d{2}-\d{4}", filename)
                 if match:
                     date = match.group(0)
@@ -116,7 +122,8 @@ def main():
                     date = date.replace("-", ".")
                     # construct and print the message
                     message = f"photo-{date}"
-                    logging.info(f"Possible match found for {filename} and {message} (score: {len(matches)})")
+                    logging.info("Possible match found for %s"
+                            " and %s (score: %d)", filename, message, len(matches))
                     duplicate_found = True  # Set the flag to True as a duplicate has been found
                     break
 

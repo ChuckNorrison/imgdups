@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+"""Tweak configs for imgdups script"""
+
 from datetime import datetime
 
 # path to search duplicates in
