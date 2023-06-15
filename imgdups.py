@@ -5,13 +5,12 @@
 # common
 import os
 import sys
-import re
 import logging
 import pickle
 import importlib
 
 # opencv
-from cv2 import cv2
+import cv2
 
 # configure logging
 logging.basicConfig(
@@ -103,11 +102,6 @@ def main():
     # Start comparison
     logging.info("Starting image comparison...")
     for _idx, filename in enumerate(os.listdir(config.SEARCH_PATH), 1):
-        # search only images with date as CHECK_DATE
-        date = re.search(r"\d{2}-\d{2}-\d{4}", filename).group(0)
-        if config.CHECK_DATE != date:
-            continue
-
         file_path = os.path.join(config.SEARCH_PATH, filename)
         search_image = cv2.imread(file_path)
 
