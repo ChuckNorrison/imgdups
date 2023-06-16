@@ -42,24 +42,64 @@ def remove_thumbs(path):
 
 def load_pickle(file):
     """Load processed files and their features"""
-    processed_files, target_index = [], []
+    index = []
 
     if os.path.exists(file):
         logging.info("Pickle file %s found, load existent object structure", file)
         with open(file, 'rb') as feat:
             try:
-                processed_files, target_index = pickle.load(feat)
+                _processed_files, index = pickle.load(feat)
             except EOFError as ex:
                 logging.debug("Pickle file %s found but damaged (%s), reset!",
                         file, str(ex))
                 os.remove(file)
 
-    return processed_files, target_index
+    return index
 
-def get_pickle_index(path):
+def clean_up_pickle(path, index):
+    """clean up pickle data"""
+    clean_index = []
+    clean_processed_files = []
+    for file, des in index:
+        original_path = os.path.join(path, os.path.basename(file))
+        if ( file not in clean_index
+                and os.path.exists(original_path) ):
+            clean_index.append((file, des))
+            clean_processed_files.append(os.path.basename(file))
+
+    return clean_processed_files, clean_index
+
+def check_scaled_images(path, processed_files):
+    """only keep processed files as scaled images"""
+    if not os.path.exists(path):
+        os.makedirs(path)
+    else:
+        # check if only processed files exist in scaled image folder
+        scaled_images = [f for f in os.listdir(path)
+                if os.path.isfile(os.path.join(path, f))]
+        for image in scaled_images:
+            if not image in processed_files:
+                # remove old scaled image
+                logging.debug("Remove obsolete scaled image: %s", image)
+                os.remove(os.path.join(path, image))
+
+def get_pickle_folder(path):
+    """check pickle folder existence"""
+    pickle_folder = os.path.join(path, "db")
+    if not os.path.exists(pickle_folder):
+        os.makedirs(pickle_folder)
+
+    return pickle_folder
+
+def get_pickle(path):
     """Create a pickle file from target path"""
-    pickle_file = "features.pkl"
-    processed_files, index = load_pickle(pickle_file)
+    scaled_image_folder = os.path.join(path, "imgdups")
+
+    pickle_file = os.path.join(get_pickle_folder(scaled_image_folder), "image_cache.pkl")
+    processed_files, index = clean_up_pickle(path, load_pickle(pickle_file))
+
+    check_scaled_images(scaled_image_folder, processed_files)
+
     index_check = False
 
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
@@ -70,16 +110,11 @@ def get_pickle_index(path):
             if image_target is None:
                 continue
 
-            if np.shape(image_target) != (500, 500, 3):
-                scaled_image_folder = os.path.join(path,"imgdups")
-                if not os.path.exists(scaled_image_folder):
-                    os.makedirs(scaled_image_folder)
-
+            if np.shape(image_target) != (500, 500, 1):
                 image_target = cv2.resize(image_target, (500, 500))
                 # save scaled image
                 scaled_image_path = os.path.join(scaled_image_folder, file)
                 if cv2.imwrite(scaled_image_path, image_target):
-                    # replace original
                     logging.debug("Add scaled image: %s", file)
 
             orb = cv2.ORB_create()
@@ -106,7 +141,7 @@ def main():
     remove_thumbs(config.TARGET_PATH)
     remove_thumbs(config.SEARCH_PATH)
 
-    target_index = get_pickle_index(config.TARGET_PATH)
+    target_index = get_pickle(config.TARGET_PATH)
 
     # Start comparison
     logging.info("Starting image comparison...")
@@ -117,7 +152,7 @@ def main():
         file_path = os.path.join(config.SEARCH_PATH, filename)
         search_image = cv2.imread(file_path)
 
-        if np.shape(search_image) != (500, 500, 3):
+        if np.shape(search_image) != (500, 500, 1):
             search_image = cv2.resize(search_image, (500, 500))
 
         orb = cv2.ORB_create()
