@@ -69,23 +69,9 @@ def clean_up_pickle(path, index):
 
     return clean_processed_files, clean_index
 
-def check_scaled_images(path, processed_files):
-    """only keep processed files as scaled images"""
-    if not os.path.exists(path):
-        os.makedirs(path)
-    else:
-        # check if only processed files exist in scaled image folder
-        scaled_images = [f for f in os.listdir(path)
-                if os.path.isfile(os.path.join(path, f))]
-        for image in scaled_images:
-            if not image in processed_files:
-                # remove old scaled image
-                logging.debug("Remove obsolete scaled image: %s", image)
-                os.remove(os.path.join(path, image))
-
 def get_pickle_folder(path):
     """check pickle folder existence"""
-    pickle_folder = os.path.join(path, "db")
+    pickle_folder = os.path.join(path, "imgdups")
     if not os.path.exists(pickle_folder):
         os.makedirs(pickle_folder)
 
@@ -93,12 +79,8 @@ def get_pickle_folder(path):
 
 def get_pickle(path):
     """Create a pickle file from target path"""
-    scaled_image_folder = os.path.join(path, "imgdups")
-
-    pickle_file = os.path.join(get_pickle_folder(scaled_image_folder), "image_cache.pkl")
+    pickle_file = os.path.join(get_pickle_folder(path), "image_cache.pkl")
     processed_files, index = clean_up_pickle(path, load_pickle(pickle_file))
-
-    check_scaled_images(scaled_image_folder, processed_files)
 
     index_check = False
 
@@ -110,17 +92,14 @@ def get_pickle(path):
             if image_target is None:
                 continue
 
-            if np.shape(image_target) != (500, 500, 1):
-                image_target = cv2.resize(image_target, (500, 500))
-                # save scaled image
-                scaled_image_path = os.path.join(scaled_image_folder, file)
-                if cv2.imwrite(scaled_image_path, image_target):
-                    logging.debug("Add scaled image: %s", file)
+            if np.shape(image_target) != (300, 300, 1):
+                image_target = cv2.resize(image_target, (300, 300))
 
             orb = cv2.ORB_create()
-            _kp, des = orb.detectAndCompute(image_target, None)
-            index.append((scaled_image_path, des))
+            _keypoints, descriptors = orb.detectAndCompute(image_target, None)
+            index.append((image_path, descriptors))
             processed_files.append(file)
+            logging.debug("Add processed file %s", file)
             index_check = True
 
     if index_check:
@@ -152,19 +131,19 @@ def main():
         file_path = os.path.join(config.SEARCH_PATH, filename)
         search_image = cv2.imread(file_path)
 
-        if np.shape(search_image) != (500, 500, 1):
-            search_image = cv2.resize(search_image, (500, 500))
+        if np.shape(search_image) != (300, 300, 1):
+            search_image = cv2.resize(search_image, (300, 300))
 
         orb = cv2.ORB_create()
-        _kp, search_des = orb.detectAndCompute(search_image, None)
+        _keypoints, search_descriptors = orb.detectAndCompute(search_image, None)
 
         duplicate_found = False
 
-        for target_filepath, target_des in target_index:
+        for target_filepath, target_descriptors in target_index:
             if os.path.basename(target_filepath) == "imgdups":
                 continue
             bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-            matches = bf_match.match(search_des, target_des)
+            matches = bf_match.match(search_descriptors, target_descriptors)
             if len(matches) > 300:
                 logging.info("%s == %s (score: %d)",
                         filename,
