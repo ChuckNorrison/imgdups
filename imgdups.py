@@ -45,12 +45,12 @@ def load_pickle(file):
     index = []
 
     if os.path.exists(file):
-        logging.info("Pickle file %s found, load existent object structure", file)
+        logging.info("Cache file %s found, load existent object structure", file)
         with open(file, 'rb') as feat:
             try:
                 _processed_files, index = pickle.load(feat)
             except EOFError as ex:
-                logging.debug("Pickle file %s found but damaged (%s), reset!",
+                logging.debug("Cache file %s found but damaged (%s), reset!",
                         file, str(ex))
                 os.remove(file)
 
@@ -77,6 +77,13 @@ def get_pickle_folder(path):
 
     return pickle_folder
 
+def scale_image(image):
+    """scale image temporary for comparison"""
+    if np.shape(image) != (500, 500, 1):
+        image = cv2.resize(image, (500, 500))
+
+    return image
+
 def get_pickle(path):
     """Create a pickle file from target path"""
     pickle_file = os.path.join(get_pickle_folder(path), "image_cache.pkl")
@@ -92,8 +99,7 @@ def get_pickle(path):
             if image_target is None:
                 continue
 
-            if np.shape(image_target) != (300, 300, 1):
-                image_target = cv2.resize(image_target, (300, 300))
+            image_target = scale_image(image_target)
 
             orb = cv2.ORB_create()
             _keypoints, descriptors = orb.detectAndCompute(image_target, None)
@@ -112,6 +118,7 @@ def get_pickle(path):
 def main():
     """ Start the script """
     logging.info("Start script")
+
     exit_status = 0
 
     config = load_config()
@@ -131,31 +138,31 @@ def main():
         file_path = os.path.join(config.SEARCH_PATH, filename)
         search_image = cv2.imread(file_path)
 
-        if np.shape(search_image) != (300, 300, 1):
-            search_image = cv2.resize(search_image, (300, 300))
+        search_image = scale_image(search_image)
 
         orb = cv2.ORB_create()
         _keypoints, search_descriptors = orb.detectAndCompute(search_image, None)
 
         duplicate_found = False
+        match_score = 0
 
         for target_filepath, target_descriptors in target_index:
             if os.path.basename(target_filepath) == "imgdups":
                 continue
             bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-            matches = bf_match.match(search_descriptors, target_descriptors)
-            if len(matches) > 300:
+            match_score = bf_match.match(search_descriptors, target_descriptors)
+            if len(match_score) > 350:
                 logging.info("%s == %s (score: %d)",
                         filename,
                         os.path.basename(target_filepath),
-                        len(matches))
+                        len(match_score))
                 duplicate_found = True
                 exit_status += 1
                 break
 
         # If no duplicate has been found after checking all target images, log the message
         if not duplicate_found:
-            logging.info("No duplicate found for %s", filename)
+            logging.info("No duplicate found for %s (score: %d)", filename, len(match_score))
 
     logging.info("Script finished!")
     if exit_status:
