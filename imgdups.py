@@ -145,6 +145,7 @@ def main():
 
         duplicate_found = False
         match_score = 0
+        match_highest_score = 0
 
         for target_filepath, target_descriptors in target_index:
             if os.path.basename(target_filepath) == "imgdups":
@@ -159,10 +160,12 @@ def main():
                 duplicate_found = True
                 exit_status += 1
                 break
+            if len(match_score) > match_highest_score:
+                match_highest_score = len(match_score)
 
         # If no duplicate has been found after checking all target images, log the message
         if not duplicate_found:
-            logging.info("No duplicate found for %s (score: %d)", filename, len(match_score))
+            logging.info("No duplicate found for %s (score: %d)", filename, match_highest_score)
 
     logging.info("Script finished!")
     if exit_status:
