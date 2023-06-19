@@ -125,7 +125,8 @@ def main():
     """ Start the script """
     logger.info("Start script")
 
-    exit_status = 0
+
+    duplicates = []
 
     config = load_config()
 
@@ -145,7 +146,6 @@ def main():
         search_image = scale_image(search_image)
         search_descriptors = get_descriptors(search_image)
 
-        duplicate_found = False
         match_score = 0
         match_highest_score = 0
 
@@ -160,21 +160,22 @@ def main():
                         filename,
                         os.path.basename(target_filepath),
                         len(match_score))
-                duplicate_found = True
-                exit_status += 1
+                duplicates.append({
+                    "search": filename,
+                    "target": os.path.basename(target_filepath),
+                    "score": len(match_score)
+                })
                 break
 
             if len(match_score) > match_highest_score:
                 match_highest_score = len(match_score)
 
-        if not duplicate_found:
+        if "search" not in duplicates:
             logger.info("No duplicate found for %s (score: %d)", filename, match_highest_score)
 
     logger.info("Script finished!")
-    if exit_status:
-        return False
 
-    return True
+    return duplicates
 
 if __name__ == "__main__":
     main()
