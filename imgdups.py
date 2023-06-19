@@ -13,21 +13,21 @@ import numpy as np
 # opencv
 import cv2
 
-# configure logging
-logging.basicConfig(
-    format='%(asctime)s %(levelname)s %(message)s',
-    level=logging.DEBUG,
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+# configure logger
+logger = logging.getLogger('imgdups')
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter(
+    '%(asctime)s %(levelname)s %(message)s')
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+logger.addHandler(ch)
 
 def load_config():
     """Load the config.py as module"""
     config = importlib.import_module('config')
     if ( not os.path.exists(config.TARGET_PATH)
             or not os.path.exists(config.SEARCH_PATH) ):
-        logging.error("Folder TARGET_PATH or SEARCH_PATH is "
+        logger.error("Folder TARGET_PATH or SEARCH_PATH is "
                 "missing, check your config.py. Exit!")
         sys.exit(1)
 
@@ -45,12 +45,12 @@ def load_pickle(file):
     index = []
 
     if os.path.exists(file):
-        logging.info("Cache file %s found, load existent object structure", file)
+        logger.info("Cache file %s found, load existent object structure", file)
         with open(file, 'rb') as feat:
             try:
                 _processed_files, index = pickle.load(feat)
             except EOFError as ex:
-                logging.debug("Cache file %s found but damaged (%s), reset!",
+                logger.debug("Cache file %s found but damaged (%s), reset!",
                         file, str(ex))
                 os.remove(file)
 
@@ -110,20 +110,20 @@ def get_pickle(path):
             descriptors = get_descriptors(image_target)
             index.append((image_path, descriptors))
             processed_files.append(file)
-            logging.debug("Add processed file %s", file)
+            logger.debug("Add processed file %s", file)
             index_check = True
 
     if index_check:
         # Save processed files and their features
         with open(pickle_file, 'wb') as feat:
-            logging.debug("Write new cache file (%d images)", len(processed_files))
+            logger.debug("Write new cache file (%d images)", len(processed_files))
             pickle.dump((processed_files, index), feat)
 
     return index
 
 def main():
     """ Start the script """
-    logging.info("Start script")
+    logger.info("Start script")
 
     exit_status = 0
 
@@ -134,7 +134,7 @@ def main():
 
     target_index = get_pickle(config.TARGET_PATH)
 
-    logging.info("Starting image comparison...")
+    logger.info("Starting image comparison...")
 
     files = [f for f in os.listdir(config.SEARCH_PATH)
             if os.path.isfile(os.path.join(config.SEARCH_PATH, f))]
@@ -156,7 +156,7 @@ def main():
             bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
             match_score = bf_match.match(search_descriptors, target_descriptors)
             if len(match_score) > 350:
-                logging.info("%s == %s (score: %d)",
+                logger.info("%s == %s (score: %d)",
                         filename,
                         os.path.basename(target_filepath),
                         len(match_score))
@@ -168,9 +168,9 @@ def main():
                 match_highest_score = len(match_score)
 
         if not duplicate_found:
-            logging.info("No duplicate found for %s (score: %d)", filename, match_highest_score)
+            logger.info("No duplicate found for %s (score: %d)", filename, match_highest_score)
 
-    logging.info("Script finished!")
+    logger.info("Script finished!")
     if exit_status:
         return False
 
