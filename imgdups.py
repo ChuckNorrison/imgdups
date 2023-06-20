@@ -18,27 +18,20 @@ logger = logging.getLogger('imgdups')
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter(
     '%(asctime)s %(levelname)s %(message)s')
-ch = logging.StreamHandler()
-ch.setFormatter(formatter)
-logger.addHandler(ch)
-
-def load_config():
-    """Load the config.py as module"""
-    config = importlib.import_module('config')
-    if ( not os.path.exists(config.TARGET_PATH)
-            or not os.path.exists(config.SEARCH_PATH) ):
-        logger.error("Folder TARGET_PATH or SEARCH_PATH is "
-                "missing, check your config.py. Exit!")
-        sys.exit(1)
-
-    return config
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 def remove_thumbs(path):
     """Remove thumb files from path"""
-    files = os.listdir(path)
-    for filename in files:
-        if "thumb" in filename:
-            os.remove(os.path.join(path, filename))
+    if os.path.exists(path):
+        files = os.listdir(path)
+        for filename in files:
+            if "thumb" in filename:
+                os.remove(os.path.join(path, filename))
+    else:
+        logger.error("Path does not exist (%s)", path)
+        sys.exit(1)
 
 def load_pickle(file):
     """Load processed files and their features"""
@@ -121,61 +114,71 @@ def get_pickle(path):
 
     return index
 
-def main():
-    """ Start the script """
-    logger.info("Start script")
+class ImgDups():
+    """
+    Class to find image duplicates
+    in target path from a search path
+    """
 
+    def __init__(self, target, search):
+        self.target = target
+        self.search = search
+        self.duplicates = []
 
-    duplicates = []
+    def find_duplicates(self):
+        """ Start the script """
+        logger.info("Start script")
 
-    config = load_config()
+        remove_thumbs(self.target)
+        remove_thumbs(self.search)
 
-    remove_thumbs(config.TARGET_PATH)
-    remove_thumbs(config.SEARCH_PATH)
+        target_index = get_pickle(self.target)
 
-    target_index = get_pickle(config.TARGET_PATH)
+        logger.info("Starting image comparison...")
 
-    logger.info("Starting image comparison...")
+        files = [f for f in os.listdir(self.search)
+                if os.path.isfile(os.path.join(self.search, f))]
 
-    files = [f for f in os.listdir(config.SEARCH_PATH)
-            if os.path.isfile(os.path.join(config.SEARCH_PATH, f))]
-    for filename in files:
-        file_path = os.path.join(config.SEARCH_PATH, filename)
-        search_image = cv2.imread(file_path)
+        for filename in files:
+            file_path = os.path.join(self.search, filename)
+            search_image = cv2.imread(file_path)
 
-        search_image = scale_image(search_image)
-        search_descriptors = get_descriptors(search_image)
+            search_image = scale_image(search_image)
+            search_descriptors = get_descriptors(search_image)
 
-        match_score = 0
-        match_highest_score = 0
+            match_score = 0
+            match_highest_score = 0
 
-        for target_filepath, target_descriptors in target_index:
-            if os.path.basename(target_filepath) == "imgdups":
-                continue
+            for target_filepath, target_descriptors in target_index:
+                if os.path.basename(target_filepath) == "imgdups":
+                    continue
 
-            bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-            match_score = bf_match.match(search_descriptors, target_descriptors)
-            if len(match_score) > 350:
-                logger.info("%s == %s (score: %d)",
-                        filename,
-                        os.path.basename(target_filepath),
-                        len(match_score))
-                duplicates.append({
-                    "search": filename,
-                    "target": os.path.basename(target_filepath),
-                    "score": len(match_score)
-                })
-                break
+                bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+                match_score = bf_match.match(search_descriptors, target_descriptors)
+                if len(match_score) > 350:
+                    logger.info("%s == %s (score: %d)",
+                            filename,
+                            os.path.basename(target_filepath),
+                            len(match_score))
+                    self.duplicates.append({
+                        "search": filename,
+                        "target": os.path.basename(target_filepath),
+                        "score": len(match_score)
+                    })
+                    break
 
-            if len(match_score) > match_highest_score:
-                match_highest_score = len(match_score)
+                if len(match_score) > match_highest_score:
+                    match_highest_score = len(match_score)
 
-        if "search" not in duplicates:
-            logger.info("No duplicate found for %s (score: %d)", filename, match_highest_score)
+            if "search" not in self.duplicates:
+                logger.info("No duplicate found for %s (score: %d)",
+                        filename, match_highest_score)
 
-    logger.info("Script finished!")
+        logger.info("Script finished!")
 
-    return duplicates
+        return self.duplicates
 
 if __name__ == "__main__":
-    main()
+    config = importlib.import_module('config')
+    img_dups = ImgDups(config.TARGET_PATH, config.SEARCH_PATH)
+    duplicates = img_dups.find_duplicates()
