@@ -11,4 +11,10 @@ Find image duplicates from a search path in a target path
 Edit `config.py` with your desired image folder paths. Start the script with `python3 imgdups.py`. 
 
 ## Advanced
-Import the script in your own code and call the main() method, it will result a dict with all duplicates found
+Import the script in your own code and use it without a config file
+
+```
+from imgdups import ImgDups
+img_dups = ImgDups("target_path", "search_path")
+duplicates = img_dups.find_duplicates()
+```
