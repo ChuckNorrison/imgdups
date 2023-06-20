@@ -22,17 +22,6 @@ console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-def remove_thumbs(path):
-    """Remove thumb files from path"""
-    if os.path.exists(path):
-        files = os.listdir(path)
-        for filename in files:
-            if "thumb" in filename:
-                os.remove(os.path.join(path, filename))
-    else:
-        logger.error("Path does not exist (%s)", path)
-        sys.exit(1)
-
 def get_pickle_folder(path):
     """check pickle folder existence"""
     pickle_folder = os.path.join(path, "imgdups")
@@ -78,15 +67,19 @@ class ImgDups():
                             file, str(ex))
                     os.remove(file)
 
-    def clean_up_pickle(self, path):
+    def check_pickle(self, path):
         """clean up pickle data"""
         clean_index = []
         clean_processed_files = []
-        for file, des in self.pickle_index:
+        for file, descriptors in self.pickle_index:
+            if "imgdups" in file or "thumb" in file:
+                continue
+
             original_path = os.path.join(path, os.path.basename(file))
             if ( file not in clean_index
                     and os.path.exists(original_path) ):
-                clean_index.append((file, des))
+                # copy old index into new index after file check
+                clean_index.append((file, descriptors))
                 clean_processed_files.append(os.path.basename(file))
 
         return clean_processed_files, clean_index
@@ -96,7 +89,7 @@ class ImgDups():
         pickle_file = os.path.join(get_pickle_folder(path), "image_cache.pkl")
         self.load_pickle(pickle_file)
 
-        processed_files, self.pickle_index = self.clean_up_pickle(path)
+        processed_files, self.pickle_index = self.check_pickle(path)
 
         index_check = False
 
@@ -126,12 +119,14 @@ class ImgDups():
     def find_duplicates(self):
         """ Start the script """
         logger.info("Start script")
-
-        remove_thumbs(self.target)
-        remove_thumbs(self.search)
+        if not os.path.exists(self.target):
+            logger.error("Target path does not exist (%s)", self.target)
+            sys.exit(1)
 
         self.get_pickle(self.target)
 
+        logger.info("Search path: %s", self.search)
+        logger.info("Target path: %s", self.target)
         logger.info("Starting image comparison, search <-> target")
 
         files = [f for f in os.listdir(self.search)
@@ -150,8 +145,6 @@ class ImgDups():
 
             for target_filepath, target_descriptors in self.pickle_index:
                 target_filename = os.path.basename(target_filepath)
-                if target_filename == "imgdups":
-                    continue
 
                 bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
                 match_score = bf_match.match(search_descriptors, target_descriptors)
@@ -183,3 +176,8 @@ if __name__ == "__main__":
     config = importlib.import_module('config')
     img_dups = ImgDups(config.TARGET_PATH, config.SEARCH_PATH)
     duplicates = img_dups.find_duplicates()
+
+    # process duplicates remove example
+    #for duplicate in duplicates:
+        #logger.debug("Remove %s?", os.path.join(config.TARGET_PATH, duplicate["target"]))
+        #os.remove(os.path.join(config.TARGET_PATH, duplicate["target"]))
