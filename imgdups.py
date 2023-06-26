@@ -122,8 +122,6 @@ class ImgDups():
             image_path = os.path.join(path, file)
             if not file in self.image_processed:
                 descriptors = get_descriptors(image_path)
-                if not descriptors:
-                    continue
                 self.image_cache.append((image_path, descriptors))
                 self.image_processed.append(file)
                 logger.debug("Add processed file %s", file)
