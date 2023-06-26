@@ -15,7 +15,7 @@ import cv2
 
 # configure logger
 logger = logging.getLogger('imgdups')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 formatter = logging.Formatter(
     '%(asctime)s %(levelname)s %(message)s')
 console_handler = logging.StreamHandler()
@@ -37,12 +37,51 @@ def scale_image(image):
 
     return image
 
-def get_descriptors(image):
+def get_descriptors(path):
     """get descriptors from image for comparison"""
+    image = cv2.imread(path)
+    if not len(image) > 0:
+        return False
+    image = scale_image(image)
     orb = cv2.ORB_create()
     _keypoints, descriptors = orb.detectAndCompute(image, None)
 
     return descriptors
+
+def load_cache_index(file):
+    """Load cache from pickle file"""
+    index = []
+    processed_files = []
+
+    if os.path.exists(file):
+        logger.debug("Cache file %s found, load existent object structure", file)
+        with open(file, 'rb') as feat:
+            try:
+                processed_files, index = pickle.load(feat)
+                logger.debug("Processed files in cache found: %d", len(processed_files))
+            except (EOFError, ValueError) as ex:
+                logger.debug("Cache file %s found but damaged (%s), reset!",
+                        file, str(ex))
+                os.remove(file)
+
+    return processed_files, index
+
+def rebuild_cache_index(path, index):
+    """check file path exists and clean up pickle data"""
+    clean_index = []
+    clean_processed_files = []
+    for file, data in index:
+        if "imgdups" in file or "thumb" in file:
+            continue
+
+        original_path = os.path.join(path, os.path.basename(file))
+        if ( file not in clean_index
+                and os.path.exists(original_path) ):
+            # copy old index into new index after file check
+            clean_index.append((file, data))
+            clean_processed_files.append(os.path.basename(file))
+
+    return clean_processed_files, clean_index
 
 class ImgDups():
     """
@@ -53,122 +92,162 @@ class ImgDups():
         self.target = target
         self.search = search
         self.duplicates = []
-        self.pickle_index = []
+        self.image_cache = []
+        self.image_processed = []
+        self.search_cache = []
+        self.search_processed = []
 
-    def load_pickle(self, file):
-        """Load processed files and their features"""
-        if os.path.exists(file):
-            logger.info("Cache file %s found, load existent object structure", file)
-            with open(file, 'rb') as feat:
-                try:
-                    _processed_files, self.pickle_index = pickle.load(feat)
-                except EOFError as ex:
-                    logger.debug("Cache file %s found but damaged (%s), reset!",
-                            file, str(ex))
-                    os.remove(file)
+    def get_image_cache_path(self):
+        """Return image cache file path"""
+        return os.path.join(get_pickle_folder(self.target), "image_cache.pkl")
 
-    def check_pickle(self, path):
-        """clean up pickle data"""
-        clean_index = []
-        clean_processed_files = []
-        for file, descriptors in self.pickle_index:
-            if "imgdups" in file or "thumb" in file:
-                continue
+    def get_search_cache_path(self):
+        """Return search cache file path"""
+        return os.path.join(get_pickle_folder(self.search), "dup_cache.pkl")
 
-            original_path = os.path.join(path, os.path.basename(file))
-            if ( file not in clean_index
-                    and os.path.exists(original_path) ):
-                # copy old index into new index after file check
-                clean_index.append((file, descriptors))
-                clean_processed_files.append(os.path.basename(file))
-
-        return clean_processed_files, clean_index
-
-    def get_pickle(self, path):
-        """Create a pickle file from target path"""
-        pickle_file = os.path.join(get_pickle_folder(path), "image_cache.pkl")
-        self.load_pickle(pickle_file)
-
-        processed_files, self.pickle_index = self.check_pickle(path)
+    def get_image_cache(self, path):
+        """
+        Load existent pickle data from target path,
+        dump updated pickle data to file,
+        return file path
+        """
+        pickle_file = self.get_image_cache_path()
+        self.image_processed, self.image_cache = load_cache_index(pickle_file)
+        self.image_processed, self.image_cache = rebuild_cache_index(path, self.image_cache)
 
         index_check = False
 
         files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
         for file in files:
             image_path = os.path.join(path, file)
-            if not file in processed_files:
-                image_target = cv2.imread(image_path)
-                if image_target is None:
+            if not file in self.image_processed:
+                descriptors = get_descriptors(image_path)
+                if not descriptors:
                     continue
-
-                image_target = scale_image(image_target)
-                descriptors = get_descriptors(image_target)
-                self.pickle_index.append((image_path, descriptors))
-                processed_files.append(file)
+                self.image_cache.append((image_path, descriptors))
+                self.image_processed.append(file)
                 logger.debug("Add processed file %s", file)
                 index_check = True
 
         if index_check:
             # Save processed files and their features
             with open(pickle_file, 'wb') as feat:
-                logger.debug("Write new cache file (%d images)", len(processed_files))
-                pickle.dump((processed_files, self.pickle_index), feat)
+                logger.debug("Write new cache file (%d images)", len(self.image_processed))
+                pickle.dump((self.image_processed, self.image_cache), feat)
 
-        return self.pickle_index
+        return pickle_file
+
+    def cleanup_search_cache(self, filename):
+        """Check search cache"""
+        check = False
+        search_filepath = os.path.join(self.search, filename)
+        search_filesize = os.path.getsize(search_filepath)
+
+        # clean up processed files cache
+        for search_proc_file in self.search_processed:
+            if not os.path.exists(os.path.join(self.search, search_proc_file)):
+                self.search_processed.remove(search_proc_file)
+
+        # clean up index data
+        for search_file in self.search_cache:
+            if ( not os.path.exists(search_file[0])
+                    or (search_filepath == search_file[0]
+                        and search_filesize != search_file[1]) ):
+                # clean up cache
+                self.search_cache.remove(search_file)
+
+            elif ( search_filepath == search_file[0]
+                    and search_filesize == search_file[1] ):
+                # cache is fine
+                check = True
+
+        if not check or not filename in self.search_processed:
+            logger.debug("Add processed file to search cache %s", filename)
+            self.search_processed.append(filename)
+            check = False
+        else:
+            logger.debug("Skip duplicate check for %s", filename)
+
+        return check
+
+    def save_search_cache(self):
+        """Remove old cache and write updated cache to file"""
+        file_path = self.get_search_cache_path()
+        if os.path.exists(file_path):
+            # clean up
+            os.remove(file_path)
+
+        with open(file_path, 'wb') as cache_file:
+            # write duplicates checked to cache file for next run
+            pickle.dump((self.search_processed, self.search_cache), cache_file)
 
     def find_duplicates(self):
         """ Start the script """
         logger.info("Start script")
+
         if not os.path.exists(self.target):
             logger.error("Target path does not exist (%s)", self.target)
             sys.exit(1)
 
-        self.get_pickle(self.target)
+        self.get_image_cache(self.target)
+        self.search_processed, self.search_cache = load_cache_index(self.get_search_cache_path())
 
         logger.info("Search path: %s", self.search)
         logger.info("Target path: %s", self.target)
         logger.info("Starting image comparison, search <-> target")
 
-        files = [f for f in os.listdir(self.search)
+        search_files = [f for f in os.listdir(self.search)
                 if os.path.isfile(os.path.join(self.search, f))]
 
-        for filename in files:
+        for filename in search_files:
+            duplicate_found = False
             file_path = os.path.join(self.search, filename)
-            search_image = cv2.imread(file_path)
 
-            search_image = scale_image(search_image)
-            search_descriptors = get_descriptors(search_image)
+            if self.cleanup_search_cache(filename):
+                continue
+
+            search_filesize = os.path.getsize(file_path)
+            self.search_cache.append((file_path, search_filesize))
+
+            search_descriptors = get_descriptors(file_path)
 
             match_score = 0
             match_score_high = 0
             match_score_name = ""
 
-            for target_filepath, target_descriptors in self.pickle_index:
+            for target_filepath, target_descriptors in self.image_cache:
                 target_filename = os.path.basename(target_filepath)
 
                 bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
                 match_score = bf_match.match(search_descriptors, target_descriptors)
+
                 if len(match_score) > 350:
                     logger.info("%s == %s (score: %d)",
                             filename,
                             target_filename,
                             len(match_score))
+
                     self.duplicates.append({
                         "search": filename,
                         "target": target_filename,
-                        "score": len(match_score)
+                        "score": len(match_score),
+                        "size": search_filesize
                     })
+
+                    duplicate_found = True
                     break
 
                 if len(match_score) > match_score_high:
                     match_score_high = len(match_score)
                     match_score_name = target_filename
 
-            if "search" not in self.duplicates:
+            if not duplicate_found:
                 logger.info("%s != %s (score: %d)",
                         filename, match_score_name, match_score_high)
 
-        logger.info("Script finished!")
+        self.save_search_cache()
+
+        logger.info("Script finished with %d duplicates found!", len(self.duplicates))
 
         return self.duplicates
 
