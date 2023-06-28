@@ -128,6 +128,9 @@ class ImgDups():
 
         files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
         for file in files:
+            if "imgdups" in file or "thumb" in file:
+                continue
+
             image_path = os.path.join(path, file)
             if not file in self.image_processed:
                 descriptors = get_descriptors(image_path)
@@ -139,7 +142,7 @@ class ImgDups():
         if index_check:
             # Save processed files and their features
             with open(pickle_file, 'wb') as feat:
-                logger.debug("Write new cache file (%d images)", len(self.image_processed))
+                logger.info("Write new cache file (%d images)", len(self.image_processed))
                 pickle.dump((self.image_processed, self.image_cache), feat)
 
         return pickle_file
@@ -173,7 +176,7 @@ class ImgDups():
             self.search_processed.append(filename)
             check = False
         else:
-            logger.debug("Skip duplicate check for %s", filename)
+            logger.info("Skip duplicate check for %s", filename)
 
         return check
 
