@@ -40,7 +40,7 @@ def scale_image(image):
 def get_descriptors(path):
     """get descriptors from image for comparison"""
     image = cv2.imread(path)
-    if not len(image) > 0:
+    if image is None:
         return False
     image = scale_image(image)
     orb = cv2.ORB_create()
@@ -82,6 +82,15 @@ def rebuild_cache_index(path, index):
             clean_processed_files.append(os.path.basename(file))
 
     return clean_processed_files, clean_index
+
+def check_garbage(file_path):
+    """check for empty files and remove them"""
+    check = False
+    file_size = os.path.getsize(file_path)
+    if file_size == 0:
+        check = True
+
+    return check
 
 class ImgDups():
     """
@@ -183,6 +192,8 @@ class ImgDups():
         """ Start the script """
         logger.info("Start script")
 
+        garbage = 0
+
         if not os.path.exists(self.target):
             logger.error("Target path does not exist (%s)", self.target)
             sys.exit(1)
@@ -216,6 +227,10 @@ class ImgDups():
             for target_filepath, target_descriptors in self.image_cache:
                 target_filename = os.path.basename(target_filepath)
 
+                if check_garbage(target_filepath):
+                    garbage += 1
+                    continue
+
                 bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
                 match_score = bf_match.match(search_descriptors, target_descriptors)
 
@@ -244,6 +259,9 @@ class ImgDups():
                         filename, match_score_name, match_score_high)
 
         self.save_search_cache()
+
+        if garbage > 0:
+            logger.warning("Ignored %d garbage files in target folder", garbage)
 
         logger.info("Script finished with %d duplicates found!", len(self.duplicates))
 
