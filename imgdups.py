@@ -30,6 +30,13 @@ def get_pickle_folder(path):
 
     return pickle_folder
 
+def get_files_from_path(path):
+    """walk through directory and return files list"""
+    files = [f for f in os.listdir(path)
+        if os.path.isfile(os.path.join(path, f))]
+
+    return files
+
 def scale_image(image):
     """scale image temporary for comparison"""
     if np.shape(image) != (500, 500, 1):
@@ -84,7 +91,7 @@ def rebuild_cache_index(path, index):
     return clean_processed_files, clean_index
 
 def check_garbage(file_path):
-    """check for empty files and remove them"""
+    """check for empty files"""
     check = False
     file_size = os.path.getsize(file_path)
     if file_size == 0:
@@ -106,6 +113,25 @@ class ImgDups():
         self.search_cache = []
         self.search_processed = []
 
+    def get_stats(self):
+        """Return stats"""
+        image_cache_path = self.get_image_cache_path()
+
+        # size in MB
+        if os.name == 'nt':
+            image_cache_size = os.path.getsize(image_cache_path) / 1024 ** 2
+        else:
+            image_cache_size = os.path.getsize(image_cache_path) / 1000 ** 2
+
+        stats = {
+                "image_processed": len(self.image_processed),
+                "image_cache_size_mb": round(image_cache_size, 3),
+                "search_processed": len(self.search_processed),
+                "duplicates": len(self.duplicates)
+        }
+
+        return stats
+
     def get_image_cache_path(self):
         """Return image cache file path"""
         return os.path.join(get_pickle_folder(self.target), "image_cache.pkl")
@@ -126,7 +152,7 @@ class ImgDups():
 
         index_check = False
 
-        files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+        files = get_files_from_path(path)
         for file in files:
             if "imgdups" in file or "thumb" in file:
                 continue
@@ -148,7 +174,10 @@ class ImgDups():
         return pickle_file
 
     def cleanup_search_cache(self, filename):
-        """Check search cache"""
+        """
+        Remove obsolete images from search cache
+        and check if it is already known, return check state
+        """
         check = False
         search_filepath = os.path.join(self.search, filename)
         search_filesize = os.path.getsize(search_filepath)
@@ -208,9 +237,7 @@ class ImgDups():
         logger.info("Target path: %s", self.target)
         logger.info("Starting image comparison, search <-> target")
 
-        search_files = [f for f in os.listdir(self.search)
-                if os.path.isfile(os.path.join(self.search, f))]
-
+        search_files = get_files_from_path(self.search)
         for filename in search_files:
             duplicate_found = False
             file_path = os.path.join(self.search, filename)
