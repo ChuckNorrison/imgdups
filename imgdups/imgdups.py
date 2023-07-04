@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 
-""" Script to find duplicated images in a target path """
+""" Script to search reference images for duplicates in a target path """
 
 # common
 import os
 import sys
 import logging
 import pickle
-import importlib
-import numpy as np
+
+from argparse import ArgumentParser
 
 # opencv
 import cv2
+import numpy as np
 
 # configure logger
 logger = logging.getLogger('imgdups')
@@ -98,6 +99,20 @@ def check_garbage(file_path):
         check = True
 
     return check
+
+def main():
+    """Start standalone with config file or arguments"""
+    parser = ArgumentParser()
+    parser.add_argument("--search", dest="search_path", required=True,
+                        help="path to images folder for duplicate candidates", metavar="PATH")
+    parser.add_argument("--target", dest="target_path", required=True,
+                        help="path to images folder to check for duplicates", metavar="PATH")
+
+    # parse args and ignore unknown args
+    args, _unknown = parser.parse_known_args()
+
+    img_dups = ImgDups(args.target_path, args.search_path)
+    img_dups.find_duplicates()
 
 class ImgDups():
     """
@@ -298,11 +313,4 @@ class ImgDups():
         return self.duplicates
 
 if __name__ == "__main__":
-    config = importlib.import_module('config')
-    img_dups = ImgDups(config.TARGET_PATH, config.SEARCH_PATH)
-    duplicates = img_dups.find_duplicates()
-
-    # process duplicates remove example
-    #for duplicate in duplicates:
-        #logger.debug("Remove %s?", os.path.join(config.TARGET_PATH, duplicate["target"]))
-        #os.remove(os.path.join(config.TARGET_PATH, duplicate["target"]))
+    main()

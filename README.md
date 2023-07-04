@@ -1,20 +1,52 @@
 # imgdups
 [![Pylint](https://github.com/ChuckNorrison/imgdups/actions/workflows/pylint.yml/badge.svg)](https://github.com/ChuckNorrison/imgdups/actions/workflows/pylint.yml)
 
-Find image duplicates from a search path in a target path
+Most image duplicate checkers can find duplicates within a single folder. This solution can verify that no duplicates from one path (search) exists in another path (target). It will use opencv to create image descriptors and cache them into a pickle file for faster processing after it was run the first time. With this approach we can not just find exact duplicates but similar images based on a match score.
 
-## Setup
-- `sudo apt install python3 python3-pip`
-- `pip3 install -r requirements.txt`
+## Requirements
+Python 3.6+ was tested
 
-## Usage
-Edit `config.py` with your desired image folder paths. Start the script with `python3 imgdups.py`. 
+`sudo apt install python3 python3-pip`
 
-## Advanced
-Import the script in your own code and use it without a config file
+## Option 1: Install from Source
+```
+git clone https://github.com/ChuckNorrison/imgdups
+cd imgdups
+pip3 install .
+```
+
+## Option 2: Install from PyPi (recommended)
+`pip3 install imgdups`
+
+## CLI Usage
+`imgdups --search "/path/to/reference" --target "/path/to/check"`
+
+or if not installed (git clone first)
 
 ```
-from imgdups import ImgDups
-img_dups = ImgDups("target_path", "search_path")
+cd imgdups
+python3 imgdups.py --search "/path/to/reference" --target "/path/to/check"
+```
+
+## Python example
+
+```
+#!/usr/bin/env python3
+import imgdups
+
+SEARCH_PATH = "/path/to/reference"
+TARGET_PATH = "/path/to/check"
+
+img_dups = imgdups.ImgDups(TARGET_PATH, SEARCH_PATH)
 duplicates = img_dups.find_duplicates()
+
+for duplicate in duplicates:
+    print("%s == %s (score: %d)",
+            duplicate["target"],
+            duplicate["search"],
+            duplicate["score"]
+    )
+
+print("%d duplicates found", len(duplicates))
+
 ```
