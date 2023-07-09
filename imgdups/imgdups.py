@@ -103,24 +103,25 @@ def check_garbage(file_path):
 def main():
     """Start standalone with config file or arguments"""
     parser = ArgumentParser()
-    parser.add_argument("--search", dest="search_path", required=True,
+    parser.add_argument("-s", "--search", dest="search_path", required=True,
                         help="path to images folder for duplicate candidates", metavar="PATH")
-    parser.add_argument("--target", dest="target_path", required=True,
+    parser.add_argument("-t", "--target", dest="target_path", required=True,
                         help="path to images folder to check for duplicates", metavar="PATH")
-    parser.add_argument("--score", dest="match_score",
-                        help="score for matching images as duplicates", metavar="PATH")
+    parser.add_argument("-m", "--match", dest="match_score",
+                        help="min match result score to return image as duplicate", metavar="INT")
 
     # parse args and ignore unknown args
     args, _unknown = parser.parse_known_args()
 
+    # use argument -m or set default score
+    match = 320
     if args.match_score.isdigit():
-        score = args.match_score
-    else:
-        # default score
-        score = 320
+        # test for maximum possible match score
+        if int(args.match_score) <= 500:
+            match = int(args.match_score)
 
     img_dups = ImgDups(args.target_path, args.search_path)
-    img_dups.find_duplicates(score)
+    img_dups.find_duplicates(match)
 
 class ImgDups():
     """
@@ -243,7 +244,7 @@ class ImgDups():
             # write duplicates checked to cache file for next run
             pickle.dump((self.search_processed, self.search_cache), cache_file)
 
-    def find_duplicates(self, score = 320):
+    def find_duplicates(self, match = 320):
         """ Start the script """
         logger.info("Start script")
 
@@ -285,9 +286,11 @@ class ImgDups():
                     continue
 
                 bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+                # calculate match score
                 match_score = bf_match.match(search_descriptors, target_descriptors)
 
-                if len(match_score) > score:
+                if len(match_score) > match:
                     logger.info("%s == %s (score: %d)",
                             filename,
                             target_filename,
