@@ -19,7 +19,7 @@ test_requirements = [
 
 setup(
     name='imgdups',
-    version='0.1.2',
+    version='0.1.3',
     description="Very fast two folder image duplicate finder programmed with pickle and cv2",
     long_description=readme,
     long_description_content_type = 'text/markdown',
