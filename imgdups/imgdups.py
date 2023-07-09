@@ -107,12 +107,20 @@ def main():
                         help="path to images folder for duplicate candidates", metavar="PATH")
     parser.add_argument("--target", dest="target_path", required=True,
                         help="path to images folder to check for duplicates", metavar="PATH")
+    parser.add_argument("--score", dest="match_score",
+                        help="score for matching images as duplicates", metavar="PATH")
 
     # parse args and ignore unknown args
     args, _unknown = parser.parse_known_args()
 
+    if args.match_score.isdigit():
+        score = args.match_score
+    else:
+        # default score
+        score = 320
+
     img_dups = ImgDups(args.target_path, args.search_path)
-    img_dups.find_duplicates()
+    img_dups.find_duplicates(score)
 
 class ImgDups():
     """
@@ -235,7 +243,7 @@ class ImgDups():
             # write duplicates checked to cache file for next run
             pickle.dump((self.search_processed, self.search_cache), cache_file)
 
-    def find_duplicates(self):
+    def find_duplicates(self, score = 320):
         """ Start the script """
         logger.info("Start script")
 
@@ -279,7 +287,7 @@ class ImgDups():
                 bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
                 match_score = bf_match.match(search_descriptors, target_descriptors)
 
-                if len(match_score) > 350:
+                if len(match_score) > score:
                     logger.info("%s == %s (score: %d)",
                             filename,
                             target_filename,
