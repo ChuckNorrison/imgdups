@@ -31,10 +31,21 @@ def get_pickle_folder(path):
 
     return pickle_folder
 
+def validate_file_extension(file):
+    """Check valid image file extensions"""
+    validate = False
+    if file.lower().endswith(('.jpg', '.png', 'jpeg', '.bmp')):
+        validate = True
+
+    return validate
+
 def get_files_from_path(path):
     """walk through directory and return files list"""
-    files = [f for f in os.listdir(path)
-        if os.path.isfile(os.path.join(path, f))]
+    files = []
+    for file in os.listdir(path):
+        if ( os.path.isfile(os.path.join(path, file))
+                and validate_file_extension(file) ):
+            files.append(file)
 
     return files
 
@@ -178,7 +189,9 @@ class ImgDups():
 
         files = get_files_from_path(path)
         for file in files:
-            if "imgdups" in file or "thumb" in file:
+            # skip folder imgdups and thumb files
+            if ( "imgdups" in file
+                    or "thumb" in file ):
                 continue
 
             image_path = os.path.join(path, file)
