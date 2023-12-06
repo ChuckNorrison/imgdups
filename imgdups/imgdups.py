@@ -105,8 +105,11 @@ def rebuild_cache_index(path, index):
 def check_garbage(file_path):
     """check for empty files"""
     check = False
-    file_size = os.path.getsize(file_path)
-    if file_size == 0:
+    if os.path.exists(file_path):
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            check = True
+    else:
         check = True
 
     return check
@@ -301,7 +304,11 @@ class ImgDups():
                 bf_match = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
                 # calculate match score
-                match_score = bf_match.match(search_descriptors, target_descriptors)
+                try:
+                    match_score = bf_match.match(search_descriptors, target_descriptors)
+                except Exception as exception:
+                    print(exception)
+                    continue
 
                 if len(match_score) > match:
                     logger.info("%s == %s (score: %d)",
